@@ -1,0 +1,116 @@
+function fileWrite(type: text):
+	if {_type} is "kelimeler":
+		file "plugins/KELIMEOYUNU/%{_type}%.yml" doesn't exists:
+			repuska dosya olustur "plugins/KELIMEOYUNU/%{_type}%.yml"
+	else if {_type} is not "config", "mesajlar" or "kelimeler":
+		set yaml value "Kelimeler.%{_type}%" from file "plugins/KELIMEOYUNU/kelimeler.yml" to "*"
+function sistemKontrol() :: text: 
+	set {_Kelimeler::*} to configuration section "Kelimeler" get of "plugins/KELIMEOYUNU/kelimeler.yml"
+	if (size of {_Kelimeler::*}) > 0:
+		set {_okey} to "true"
+		if {Kelime::oyunu::aktif} is true:
+			clear {Kelime::oyunu::aktif}
+	return {_okey}
+function kelimeeKontrol(kelime: text) :: text: 
+	if a value "Kelimeler.%{_kelime}%" get of "plugins/KELIMEOYUNU/kelimeler.yml" is not set:
+		set {_onay} to "true"
+	else:
+		set {_onay} to "false"
+	return {_onay}
+function kelimeSil(kelime: text):
+	set {_Kelimeler::*} to configuration section "Kelimeler" get of "plugins/KELIMEOYUNU/kelimeler.yml"
+	remove {_kelime} from {_Kelimeler::*}
+	delete file "plugins/KELIMEOYUNU/kelimeler.yml"
+	repuska dosya olustur "plugins/KELIMEOYUNU/kelimeler.yml" 	
+	loop {_Kelimeler::*}:
+		set yaml value "Kelimeler.%loop-value%" from file "plugins/KELIMEOYUNU/kelimeler.yml" to "*"
+function randomKelime() :: text:
+	set {_l} to "$-=-&-^-q-w-e-r-t-y-u-i-o-p-g-a-s-d-f-g-h-j-k-l-z-x-c-v-b-n-m-1-2-3-4-5-6-7-8-9-0-Q-W-E-R-T-Y-U-I-O-P-G-A-S-D-F-G-H-J-K-L-Z-X-C-V-B-N-M"
+	set {_letter::*} to {_l} split at "-"
+	loop 15 times:
+		set {_letters::%loop-number%} to random text of {_letter::*}
+	set {_v} to "%{_letters::1}%%{_letters::2}%%{_letters::3}%%{_letters::4}%%{_letters::5}%%{_letters::6}%%{_letters::7}%%{_letters::8}%%{_letters::9}%%{_letters::10}%%{_letters::11}%%{_letters::12}%%{_letters::13}%%{_letters::14}%%{_letters::15}%"
+	return {_v}
+function oyunCalistir():
+	set {_Kelimeler::*} to configuration section "Kelimeler" get of "plugins/KELIMEOYUNU/kelimeler.yml"
+	set {_kelime} to random object out of {_Kelimeler::*}
+	broadcast "&e&l================&c&l[ &fKelime Oyunu&c&l ]&e&l================"
+	broadcast ""
+	broadcast " "
+	broadcast "    &fAşağıdaki cümleyi yaz ve ödülü kap!"
+	broadcast "    &c%{_kelime}%"
+	broadcast ""
+	broadcast " "
+	broadcast "&e&l================&c&l[ &fKelime Oyunu&c&l ]&e&l================"
+	wait 1 tick 
+	set {kelime} to {_kelime}
+	set {Kelime::oyunu::aktif} to true
+
+import:
+	org.bukkit.event.player.AsyncPlayerChatEvent
+
+command /kelimeoyunu [<text>]:
+	aliases: /ko
+	trigger:
+		if player has permission "Kelimeler.admin" or "Kelimeler.*":	 
+			if arg 1 is not set:
+				wait 2 ticks
+				open virtual chest inventory with size 1 named "&c&lKELIMEOYUNU" to player
+				wait 1 ticks
+				repuska create gui slot 1 of player with book named "&aKelime Ekle" with lore "||&7Kelime eklemek için tıkla." to close then run player command "/kelimeoyunu ekle"
+				repuska create gui slot 3 of player with book named "&aKelime Sil" with lore "||&7Kelime eklemek için tıkla." to close then run player command "/kelimeoyunu sil"
+				repuska create gui slot 5 of player with book named "&aŞifre Oluştur" with lore "||&7Şifre oluşturmak için tıkla." to close then run player command "/kelimeoyunu şifre"
+				repuska create gui slot 7 of player with book named "&aÇalıştır" with lore "||&7Kelime oyununu çalıştırmak için tıkla." to close then run player command "/kelimeoyunu çalıştır"
+			else if arg 1 is "ekle":
+				set {Kelime::Admin::%uuid of player%} to "ekle"
+				send "&6&lKELIMEOYUNU &f&l► &fEklemek istediğiniz kelimeyi yazınız"
+			else if arg 1 is "sil":
+				set {Kelime::Admin::%uuid of player%} to "sil"
+				send "&6&lKELIMEOYUNU &f&l► &fSilmek istediğiniz kelimeyi yazınız"
+			else if arg 1 is "şifre":
+				set {_word} to randomKelime()
+				set {_sonuc} to kelimeeKontrol("%{_word}%")
+				if {_sonuc} is "true":
+					fileWrite("%{_word}%")
+					send "&6&lKELIMEOYUNU &f&l► &fŞifre oluşturuldu. &c%{_word}%"
+				else:
+					send "&6&lKELIMEOYUNU &f&l► &fBir hata oluştu."
+			else if arg 1 is "çalıştır":
+				set {_sorun} to sistemKontrol()
+				if {_sorun} is "true":
+					oyunCalistir()
+				else:
+					send "&6&lKELIMEOYUNU &f&l► &cHiç kelime yok!"
+		else:
+			send "&6&lKELIMEOYUNU &f&l► &cBuna yetkin yok!"
+
+on AsyncPlayerChatEvent:
+	set {_p} to event.getPlayer()
+	set {_uuid} to uuid of {_p}
+	set {_msj} to event.getMessage()
+	{Kelime::oyunu::aktif} is true:
+		if event.getMessage().equals("%{kelime}%"):
+			wait 2 tick
+			clear {Kelime::oyunu::aktif}
+			clear {kelime}
+			give 1 diamond named "&cKelimeOyunu ödülü" to {_p}
+			broadcast "&6&lKELIMEOYUNU &f&l► &fKelime Oyununu &b%{_p}% &fkazandı!"
+		wait 2 minute
+		clear {Kelime::oyunu::aktif}
+	{Kelime::Admin::%{_uuid}%} is set:
+		cancel event
+		set {_k} to {_msj}
+		{Kelime::Admin::%{_uuid}%} is "ekle":
+			clear {Kelime::Admin::%{_uuid}%}
+			if kelimeeKontrol("%{_k}%") is "true":
+				fileWrite("%{_k}%")
+				send "&6&lKELIMEOYUNU &f&l► &fKelime eklendi &c%{_k}%" to {_p}
+			else:
+				send "&6&lKELIMEOYUNU &f&l► &cBu kelime zaten eklenmiş!" to {_p}
+		{Kelime::Admin::%{_uuid}%} is "sil":
+			clear {Kelime::Admin::%{_uuid}%}
+			if kelimeeKontrol("%{_k}%") is "false":
+				kelimeSil("%{_k}%")
+				send "&6&lKELIMEOYUNU &f&l► &fKelime silindi &c%{_k}%" to {_p}
+			else:
+				send "&6&lKELIMEOYUNU &f&l► &cBöyle bir kelime yok!" to {_p}
